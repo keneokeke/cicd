@@ -1,0 +1,38 @@
+name: deployment
+
+on:
+  push:
+    branches: ["main"]
+
+jobs: 
+  deploy:
+    runs-on: ubuntu-latest
+    steps: 
+      - name: branch checkout
+        uses: actions/checkout@v3
+      - name: install azure
+        uses: azure/setup-kubectl@v2.0
+        with:
+          version: 'v1.24.0' 
+        id: install
+      - name: configure aws credential
+        uses: aws-actions/configure-aws-credentials@v4
+        with: 
+          aws-access-key-id:  ${{secrets.AWS_ACCESS_KEY_ID}}
+          aws-secret-access-key: ${{AWS_SECRET_KEY}} 
+          aws-region: us-east-2
+      - name: ecr login
+        uses: aws-actions/amazon-ecr-login@v1 
+      - name: build, push docker image to amazon ecr
+        env:
+          REGISTRY: ${{steps.login-ecr.output.registry}}
+          REPOSITORY: fastx
+          IMAGE_TAG: v1.1
+        run: | 
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG
+      - name: update kube config
+        run: aws eks update-kubeconfig --name ekscluster
+      - name: deploy to eks
+        run: |
+          kubectl apply -f Deployment.yaml
+          kubectl apply -f service.yaml
